@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚌Control de Salida y Llegada de Autobuses🚌</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display&family=Story+Script&display=swap');
+        *{
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none; 
+        }
+
+        body {
+            font-family: "Story Script", sans-serif;
+            transition: background-color .5s;
+            background-color: #f4f4f4;
+        }
+
+        .sidenav {
+            height: 100%;
+            width: 0;
+            position: fixed;
+            z-index: 1;
+            top: 0;
+            left: 0;
+            background-color: #111;
+            overflow-x: hidden;
+            transition: 0.5s;
+            padding-top: 60px;
+        }
+
+        .sidenav a {
+            padding: 8px 8px 8px 32px;
+            text-decoration: none;
+            font-size: 22px;
+            color: #818181;
+            display: block;
+            transition: 0.3s;
+        }
+
+        .sidenav a:hover {
+            color: #f1f1f1;
+        }
+
+        .sidenav .closebtn {
+            position: absolute;
+            top: 0;
+            right: 25px;
+            font-size: 36px;
+            margin-left: 50px;
+        }
+
+        #main {
+            transition: margin-left .5s;
+            padding: 16px;
+        }
+
+        #contenido {
+            margin-top: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            max-width: 400px;
+        }
+
+        form input, form select {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        form button {
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        form button:hover {
+            background-color: #218838;
+        }
+
+        #btnBuscar {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #btnBuscar:hover {
+            background-color: #0056b3;
+        }
+
+        #tablaResultados {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        #tablaResultados th, #tablaResultados td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        #tablaResultados th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        #tablaResultados tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidenav" class="sidenav">
+        <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+        <a href="#" id="linkSalida">📤Ingreso de Salidas</a>
+        <a href="#" id="linkLlegada">📥Registro de Llegadas</a>
+        <a href="#" id="linkBusqueda">🔎Búsqueda</a>
+    </div>
+
+    <div id="main">
+        <span style="font-size:30px;cursor:pointer" onclick="openNav()">&#9776; Menú</span>
+        <h1>🚏Sistema de Control de Autobuses🚏</h1>
+        <div id="contenido">
+            <!-- El contenido se cargará aquí dinámicamente -->
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            let db; 
+            const request = indexedDB.open("busControlDB", 1);
+
+            request.onerror = function(event) {
+                console.error("Error grave al abrir la base de datos:", event.target.errorCode);
+            };
+
+            request.onupgradeneeded = function(event) {
+                let dbInstance = event.target.result;
+                if (!dbInstance.objectStoreNames.contains('salidas')) {
+                    const objectStore = dbInstance.createObjectStore("salidas", { keyPath: "id", autoIncrement: true });
+                    objectStore.createIndex("llegada", "llegada", { unique: false });
+                }
+            };
+
+            request.onsuccess = function(event) {
+                db = event.target.result;
+                cargarContenido('salida');
+            };
+
+            window.openNav = () => $("#sidenav").css("width", "250px") && $("#main").css("marginLeft", "250px");
+            window.closeNav = () => $("#sidenav").css("width", "0") && $("#main").css("marginLeft", "0");
+
+            $('#linkSalida, #linkLlegada, #linkBusqueda').click(function(e) {
+                e.preventDefault();
+                const vista = $(this).attr('id').replace('link', '').toLowerCase();
+                cargarContenido(vista);
+                closeNav();
+            });
+
+            function cargarContenido(vista) {
+                let contenido = '';
+                switch (vista) {
+                    case 'salida':
+                        contenido = `
+                            <h2>Ingreso de Salidas de Autobuses</h2>
+                            <form id="formSalida">
+                                <input type="text" id="nombreConductor" placeholder="Nombre del Conductor" required>
+                                <input type="text" id="rut" placeholder="RUT (sin puntos y con guión)" required>
+                                <input type="text" id="patente" placeholder="Patente" required>
+                                <input type="number" id="numeroBus" placeholder="Número de Bus" required>
+                                <input type="text" id="numeroLinea" placeholder="Número de Línea" required>
+                                <input type="datetime-local" id="fechaSalida" required>
+                                <button type="submit">💾Guardar Salida</button>
+                            </form>`;
+                        break;
+                    case 'llegada':
+                        contenido = `
+                            <h2>Registro de Llegadas</h2>
+                            <form id="formLlegada">
+                                <select id="selectBusesSalida" required>
+                                    <option value="">Cargando buses en ruta...</option>
+                                </select>
+                                <button type="submit">💾Guardar Llegada</button>
+                            </form>`;
+                        cargarBusesEnRuta();
+                        break;
+                    case 'busqueda':
+                        // --- CAMBIO 1: AÑADIR CHECKBOX PARA FECHA DE LLEGADA ---
+                        contenido = `
+                            <h2>Búsqueda de Salidas</h2>
+                            <p>Seleccione los campos que desea mostrar:</p>
+                            <div><input type="checkbox" id="checkNombre" value="nombreConductor" checked><label for="checkNombre"> Nombre del Conductor</label></div>
+                            <div><input type="checkbox" id="checkRut" value="rut" checked><label for="checkRut"> RUT</label></div>
+                            <div><input type="checkbox" id="checkPatente" value="patente" checked><label for="checkPatente"> Patente</label></div>
+                            <div><input type="checkbox" id="checkNumBus" value="numeroBus" checked><label for="checkNumBus"> Número de Bus</label></div>
+                            <div><input type="checkbox" id="checkNumLinea" value="numeroLinea" checked><label for="checkNumLinea"> Número de Línea</label></div>
+                            <div><input type="checkbox" id="checkFecha" value="fechaSalida" checked><label for="checkFecha"> Fecha de Salida</label></div>
+                            <div><input type="checkbox" id="checkFechaLlegada" value="fechaLlegada" checked><label for="checkFechaLlegada"> Fecha de Llegada</label></div>
+                            <button id="btnBuscar">🔎Buscar</button>
+                            <div id="resultadosBusqueda"><table id="tablaResultados"></table></div>`;
+                        break;
+                }
+                $('#contenido').html(contenido);
+            }
+
+            function cargarBusesEnRuta() {
+                if (!db) { setTimeout(cargarBusesEnRuta, 100); return; }
+                const transaction = db.transaction(["salidas"], "readonly");
+                const index = transaction.objectStore("salidas").index("llegada");
+                const request = index.getAll(IDBKeyRange.only(0));
+
+                request.onsuccess = function() {
+                    const buses = request.result || [];
+                    let options = buses.length > 0
+                        ? '<option value="">Seleccione un bus...</option>' + buses.map(bus => `<option value="${bus.id}">Bus ${bus.numeroBus} - Patente ${bus.patente}</option>`).join('')
+                        : '<option value="">No hay buses en ruta</option>';
+                    $('#selectBusesSalida').html(options);
+                };
+            }
+
+            $(document).on('submit', '#formSalida', function(e) {
+                e.preventDefault();
+                if (!db) { alert("Base de datos no lista."); return; }
+                if (!validarRut($('#rut').val())) { alert('RUT chileno inválido.'); return; }
+
+                const nuevaSalida = {
+                    nombreConductor: $('#nombreConductor').val(),
+                    rut: $('#rut').val(),
+                    patente: $('#patente').val(),
+                    numeroBus: $('#numeroBus').val(),
+                    numeroLinea: $('#numeroLinea').val(),
+                    fechaSalida: new Date($('#fechaSalida').val()).toLocaleString('es-CL'),
+                    llegada: 0
+                };
+
+                const transaction = db.transaction(["salidas"], "readwrite");
+                transaction.objectStore("salidas").add(nuevaSalida).onsuccess = () => {
+                    alert('Salida registrada exitosamente.');
+                    $('#formSalida')[0].reset();
+                };
+            });
+
+            $(document).on('submit', '#formLlegada', function(e) {
+                e.preventDefault();
+                if (!db) { alert("Base de datos no lista."); return; }
+
+                const idSalida = parseInt($('#selectBusesSalida').val());
+                if (!idSalida) { alert('Por favor, seleccione un bus.'); return; }
+                
+                const transaction = db.transaction(["salidas"], "readwrite");
+                const objectStore = transaction.objectStore("salidas");
+                const request = objectStore.get(idSalida);
+
+                request.onsuccess = function() {
+                    const salida = request.result;
+                    if (salida) {
+                        // --- CAMBIO 2: AÑADIR LA FECHA DE LLEGADA AL OBJETO ---
+                        salida.llegada = 1;
+                        salida.fechaLlegada = new Date().toLocaleString('es-CL'); // Se guarda la fecha y hora actual
+                        
+                        objectStore.put(salida).onsuccess = () => {
+                            alert('Llegada registrada exitosamente.');
+                            cargarBusesEnRuta();
+                        };
+                    }
+                };
+            });
+
+            $(document).on('click', '#btnBuscar', function() {
+                if (!db) { alert("Base de datos no lista."); return; }
+
+                const checkboxes = $('#contenido input[type="checkbox"]:checked');
+                if (checkboxes.length === 0) { alert("Seleccione al menos un campo para mostrar."); return; }
+
+                const camposAMostrar = checkboxes.map(function() { return this.value; }).get();
+                // --- CAMBIO 3.1: AÑADIR EL TÍTULO DE LA NUEVA COLUMNA ---
+                const headers = {
+                    nombreConductor: "Nombre Conductor", rut: "RUT", patente: "Patente",
+                    numeroBus: "N° Bus", numeroLinea: "N° Línea", fechaSalida: "Fecha Salida",
+                    fechaLlegada: "Fecha Llegada"
+                };
+
+                const transaction = db.transaction(["salidas"], "readonly");
+                const request = transaction.objectStore("salidas").getAll();
+
+                request.onsuccess = function() {
+                    const resultados = request.result;
+                    const $tablaResultados = $('#tablaResultados').empty();
+
+                    let headerHtml = '<thead><tr>';
+                    camposAMostrar.forEach(campo => headerHtml += `<th>${headers[campo]}</th>`);
+                    headerHtml += '</tr></thead>';
+                    $tablaResultados.append(headerHtml);
+
+                    let bodyHtml = '<tbody>';
+                    if (resultados.length > 0) {
+                        resultados.forEach(salida => {
+                            bodyHtml += '<tr>';
+                            // --- CAMBIO 3.2: LÓGICA ESPECIAL PARA MOSTRAR LA FECHA O "EN RUTA" ---
+                            camposAMostrar.forEach(campo => {
+                                let cellValue;
+                                if (campo === 'fechaLlegada') {
+                                    // Si el campo es fechaLlegada, la mostramos si existe. Si no, mostramos "En ruta".
+                                    cellValue = salida.fechaLlegada || 'En ruta';
+                                } else {
+                                    // Para todos los demás campos, usamos el valor normal.
+                                    cellValue = salida[campo] || '';
+                                }
+                                bodyHtml += `<td>${cellValue}</td>`;
+                            });
+                            bodyHtml += '</tr>';
+                        });
+                    } else {
+                        bodyHtml += `<tr><td colspan="${camposAMostrar.length}">No hay registros.</td></tr>`;
+                    }
+                    bodyHtml += '</tbody>';
+                    $tablaResultados.append(bodyHtml);
+                };
+            });
+            
+            function validarRut(rutCompleto) {
+                if (!rutCompleto) return false;
+                rutCompleto = rutCompleto.replace("‐", "-").replace(/\./g, '');
+                if (!/^[0-9]+-[0-9kK]{1}$/.test(rutCompleto)) return false;
+                var tmp = rutCompleto.split('-');
+                var dv = tmp[1].toLowerCase();
+                var rut = tmp[0];
+                var T = rut;
+                var M = 0, S = 1;
+                for (; T; T = Math.floor(T / 10)) {
+                    S = (S + T % 10 * (9 - M++ % 6)) % 11;
+                }
+                var v = S ? S - 1 : 'k';
+                return v == dv;
+            }
+        });
+    </script>
+</body>
+</html>
